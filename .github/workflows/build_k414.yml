@@ -1,4 +1,4 @@
-name: Build Kirin970 K414
+﻿name: Build Kirin970 K414
 
 on:
   workflow_dispatch:
@@ -78,6 +78,10 @@ jobs:
           cat /tmp/sp.txt || true
           while read -r f; do sed -i 's/[[:space:]]*-fstack-protector[a-z-]*//g' "$f"; done < /tmp/sp.txt
           echo "remaining fstack-protector: $(grep -rn -- 'fstack-protector' --include=Makefile --include='Kbuild' --include='*.mk' . | wc -l)"
+          echo "=== fix 9: force -fno-stack-protector in top-level Makefile (tree has no __stack_chk_guard definition) ==="
+          grep -n 'stackp-flag' Makefile || true
+          sed -i 's|^KBUILD_CFLAGS += \$(stackp-flag)$|KBUILD_CFLAGS += -fno-stack-protector|' Makefile
+          grep -n 'fno-stack-protector' Makefile || true
           grep -rn -- '-fstack-protector' drivers/vcodec/ 2>/dev/null | head -5 || true
 
       - name: Diagnose stack protector support
