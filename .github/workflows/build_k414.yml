@@ -170,6 +170,9 @@ jobs:
           echo "=== fix 12: force CMA family on (4.14 gfp.h references MIGRATE_CMA unconditionally) ==="
           grep -E 'CONFIG_(CMA|MIGRATION|MEMORY_ISOLATION|COMPACTION|DMA_CMA|HISI_CMA)' ../out/.config || true
           ./scripts/config --file ../out/.config -e MMU -e MIGRATION -e COMPACTION -e MEMORY_ISOLATION -e CMA -e DMA_CMA -e HISI_CMA -e CMA_SIZE_SEL_MBYTES --set-val CMA_AREAS 7 --set-val CMA_SIZE_MBYTES 32 || true
+          echo "=== fix 17: enable IPA_THERMAL family (mali hisilicon platform uses cdev->ipa_enabled/bound_event) ==="
+          ./scripts/config --file ../out/.config -e THERMAL -e THERMAL_OF -e THERMAL_TSENSOR -e THERMAL_POWER_ACTOR_CPU -e IPA_THERMAL -e HISI_IPA_THERMAL || true
+          grep -E '^CONFIG_(IPA_THERMAL|THERMAL_TSENSOR|THERMAL_POWER_ACTOR_CPU|HISI_IPA_THERMAL)=' ../out/.config || true
           make ARCH=arm64 O=../out HOSTCFLAGS="-fcommon -w" olddefconfig
           echo "=== diag: core subsystems after olddefconfig ==="
           ls -l arch/arm64/configs/k414_device_defconfig || true
@@ -204,6 +207,7 @@ jobs:
           name: Kirin970_K414_${{ env.NOW }}
           path: dist/
           if-no-files-found: warn
+
 
 
 
