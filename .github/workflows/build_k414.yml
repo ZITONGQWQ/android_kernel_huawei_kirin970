@@ -1,0 +1,63 @@
+name: Build Kirin970 K414
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: lineage-20
+          fetch-depth: 1
+
+      - name: GetTime
+        run: echo "NOW=$(date +%Y%m%d%H%M)" >> $GITHUB_ENV
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential bc bison flex libssl-dev \
+            libelf-dev device-tree-compiler python3 git curl wget xz-utils zip \
+            gcc-10-aarch64-linux-gnu
+
+      - name: Show toolchain
+        run: |
+          uname -a
+          aarch64-linux-gnu-gcc-10 --version | head -1
+          python3 --version
+
+      - name: Build Kernel
+        run: |
+          set -e
+          export ARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          export CC=aarch64-linux-gnu-gcc-10
+          mkdir -p ../out
+          make ARCH=arm64 O=../out HOSTCFLAGS="-fcommon -w" merge_kirin970_defconfig
+          make ARCH=arm64 O=../out HOSTCFLAGS="-fcommon -w" CC=aarch64-linux-gnu-gcc-10 -j$(nproc --all)
+
+      - name: Show result
+        if: always()
+        run: |
+          ls -la ../out/arch/arm64/boot/ 2>/dev/null || echo "no boot dir"
+
+      - name: Pack artifacts
+        if: always()
+        run: |
+          mkdir -p dist/ko
+          cp ../out/arch/arm64/boot/Image.gz dist/ 2>/dev/null || true
+          cp ../out/arch/arm64/boot/Image dist/ 2>/dev/null || true
+          cp ../out/.config dist/kernel_config.txt 2>/dev/null || true
+          find ../out -name '*.ko' -exec cp {} dist/ko/ \; 2>/dev/null || true
+          ls -la dist dist/ko | head -60
+
+      - name: Upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kirin970_K414_${{ env.NOW }}
+          path: dist/
+          if-no-files-found: warn
