@@ -171,6 +171,10 @@ jobs:
           grep -E 'CONFIG_(CMA|MIGRATION|MEMORY_ISOLATION|COMPACTION|DMA_CMA|HISI_CMA)' ../out/.config || true
           ./scripts/config --file ../out/.config -e MMU -e MIGRATION -e COMPACTION -e MEMORY_ISOLATION -e CMA -e DMA_CMA -e HISI_CMA -e CMA_SIZE_SEL_MBYTES --set-val CMA_AREAS 7 --set-val CMA_SIZE_MBYTES 32 || true
           make ARCH=arm64 O=../out HOSTCFLAGS="-fcommon -w" olddefconfig
+          echo "=== diag: core subsystems after olddefconfig ==="
+          ls -l arch/arm64/configs/k414_device_defconfig || true
+          grep -E '^CONFIG_(NET|I2C|HAVE_HW_BREAKPOINT|HW_BREAKPOINT|PERF_EVENTS|INET|PACKET)=' ../out/.config || true
+          grep -cE '^# CONFIG_(NET|I2C|HAVE_HW_BREAKPOINT) is not set' ../out/.config || true
           echo "--- effective config check ---"
           grep -n 'CONFIG_MODVERSIONS\|CONFIG_RELOCATABLE\|CONFIG_CC_STACKPROTECTOR' ../out/.config || true
           grep -E 'CONFIG_(CMA|MIGRATION|MEMORY_ISOLATION|COMPACTION)=' ../out/.config || true
@@ -200,6 +204,8 @@ jobs:
           name: Kirin970_K414_${{ env.NOW }}
           path: dist/
           if-no-files-found: warn
+
+
 
 
 
