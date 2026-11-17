@@ -1,4 +1,4 @@
-﻿name: Build Kirin970 K414
+name: Build Kirin970 K414
 
 on:
   workflow_dispatch:
@@ -71,6 +71,14 @@ jobs:
           cat /tmp/maxbuf.txt || true
           while read -r f; do sed -i 's/const uint32_t max_buf = 60;/#define max_buf 60/' "$f"; done < /tmp/maxbuf.txt
           grep -rn 'define max_buf 60' drivers/ 2>/dev/null | head -5 || true
+
+          echo "=== fix 8: strip -fstack-protector* from all Makefiles/Kbuild (tree lacks __stack_chk_guard) ==="
+          grep -rl -- 'fstack-protector' --include=Makefile --include='Kbuild' --include='*.mk' . > /tmp/sp.txt || true
+          wc -l /tmp/sp.txt || true
+          cat /tmp/sp.txt || true
+          while read -r f; do sed -i 's/[[:space:]]*-fstack-protector[a-z-]*//g' "$f"; done < /tmp/sp.txt
+          echo "remaining fstack-protector: $(grep -rn -- 'fstack-protector' --include=Makefile --include='Kbuild' --include='*.mk' . | wc -l)"
+          grep -rn -- '-fstack-protector' drivers/vcodec/ 2>/dev/null | head -5 || true
 
       - name: Diagnose stack protector support
         run: |
