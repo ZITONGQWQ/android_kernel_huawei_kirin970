@@ -1,4 +1,4 @@
-name: Build Kirin970 K414
+﻿name: Build Kirin970 K414
 
 on:
   workflow_dispatch:
@@ -57,6 +57,30 @@ jobs:
           echo "=== fix 5: disable WERROR kconfig ==="
           chmod +x scripts/config 2>/dev/null || true
           ./scripts/config --file arch/arm64/configs/merge_kirin970_defconfig -d WERROR || true
+
+      - name: Diagnose stack protector support
+        run: |
+          set +e
+          CC=aarch64-linux-gnu-gcc-10
+          echo "--- gcc version ---"; $CC --version | head -2
+          echo "--- print-file-name=include ---"; $CC -print-file-name=include
+          echo "--- bare stackp test ---"
+          echo 'void foo(void){}' > /tmp/t.c
+          $CC -fstack-protector-strong -c /tmp/t.c -o /tmp/t.o; echo "bare_rc=$?"
+          echo "--- cc-option style test (as kernel Makefile does) ---"
+          $CC -D__KERNEL__ -fstack-protector-strong -Werror -O2 -nostdinc \
+              -isystem "$($CC -print-file-name=include)" -c -x c /dev/null -o /tmp/t2.o
+          echo "ccoption_rc=$?"
+          echo "--- defconfig stackp entries ---"
+          grep -n 'CC_STACKPROTECTOR' arch/arm64/configs/merge_kirin970_defconfig || true
+
+      - name: Fallback relax stack protector
+        run: |
+          set -e
+          chmod +x scripts/config 2>/dev/null || true
+          ./scripts/config --file arch/arm64/configs/merge_kirin970_defconfig \
+            -d CC_STACKPROTECTOR_STRONG -d CC_STACKPROTECTOR_REGULAR -e CC_STACKPROTECTOR_NONE || true
+          grep -n 'CC_STACKPROTECTOR' arch/arm64/configs/merge_kirin970_defconfig || true
 
       - name: Build Kernel
         run: |
