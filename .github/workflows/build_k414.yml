@@ -1,4 +1,4 @@
-name: Build Kirin970 K414
+﻿name: Build Kirin970 K414
 
 on:
   workflow_dispatch:
@@ -103,7 +103,7 @@ jobs:
           export CROSS_COMPILE=aarch64-linux-gnu-
           export CC=aarch64-linux-gnu-gcc-10
           mkdir -p ../out
-          export KCFLAGS="-w -Wno-error"
+          export KCFLAGS="-w -Wno-error -fno-stack-protector"
           make ARCH=arm64 O=../out HOSTCFLAGS="-fcommon -w" merge_kirin970_defconfig
           make ARCH=arm64 O=../out HOSTCFLAGS="-fcommon -w" CC=aarch64-linux-gnu-gcc-10 -j$(nproc --all)
 
