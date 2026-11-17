@@ -105,10 +105,12 @@ jobs:
           grep -n 'stackprotector_shim' lib/Makefile || true
           sed -i 's|^KBUILD_CFLAGS += -fno-stack-protector$|KBUILD_CFLAGS += -fno-stack-protector -fno-stack-clash-protection|' Makefile
           grep -n 'stack-clash' Makefile || true
-          echo "=== fix 13: drop redundant extern local_clock in printk.h (conflicts with sched/clock.h static inline) ==="
-          grep -n 'extern u64 local_clock(void);' include/linux/printk.h || true
-          sed -i '/^extern u64 local_clock(void);$/d' include/linux/printk.h
-          grep -n 'local_clock' include/linux/printk.h || true
+          echo "=== fix 13: printk.h #else branch must not reference local_clock (CONFIG_HISI_TIME has no Kconfig in this tree) ==="
+          grep -n 'local_clock\|sched_clock' include/linux/printk.h || true
+          sed -i 's|^extern u64 local_clock(void);$|extern unsigned long long notrace sched_clock(void);|' include/linux/printk.h
+          sed -i '555,562 s|return local_clock();|return (u64)sched_clock();|' include/linux/printk.h
+          echo "--- after ---"
+          sed -n '553,562p' include/linux/printk.h
 
           echo "=== fix 11: disable MODVERSIONS + RELOCATABLE + RANDOMIZE_BASE (KASLR selects RELOCATABLE -> -shared vmlinux rejects R_AARCH64_ABS32) ==="
           grep -n 'CONFIG_MODVERSIONS\|CONFIG_RELOCATABLE\|CONFIG_RANDOMIZE_BASE' arch/arm64/configs/k414_device_defconfig || true
