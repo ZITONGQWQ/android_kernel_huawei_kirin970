@@ -1,4 +1,4 @@
-name: Build Kirin970 K414
+﻿name: Build Kirin970 K414
 
 on:
   workflow_dispatch:
@@ -28,6 +28,21 @@ jobs:
           uname -a
           aarch64-linux-gnu-gcc-10 --version | head -1
           python3 --version
+
+      - name: Patch known GCC10+ breakages
+        run: |
+          set -e
+          echo "=== fix 1: block/blk.h elevator_exit self-recursion ==="
+          grep -n 'elevator_exit' block/blk.h | head -10 || true
+          sed -i 's/^\([[:space:]]*\)elevator_exit(q, e);[[:space:]]*$/\1__elevator_exit(q, e);/' block/blk.h
+          grep -n 'elevator_exit' block/blk.h | head -10 || true
+          echo "=== fix 2: fs/f2fs/sdp.h const int array size ==="
+          grep -n 'RESERVED_DATA_LEN' fs/f2fs/sdp.h | head -10 || true
+          sed -i 's/static const int RESERVED_DATA_LEN = 8;/#define RESERVED_DATA_LEN 8/' fs/f2fs/sdp.h
+          grep -n 'RESERVED_DATA_LEN' fs/f2fs/sdp.h | head -10 || true
+          echo "=== fix 3: disable WERROR ==="
+          chmod +x scripts/config 2>/dev/null || true
+          ./scripts/config --file arch/arm64/configs/merge_kirin970_defconfig -d WERROR || true
 
       - name: Build Kernel
         run: |
