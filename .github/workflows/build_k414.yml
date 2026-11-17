@@ -46,7 +46,7 @@ jobs:
           grep -rl -- '-Werror' --include=Makefile --include='Kbuild' . > /tmp/werror.txt || true
           wc -l /tmp/werror.txt || true
           cat /tmp/werror.txt || true
-          while read -r f; do sed -i 's/[[:space:]]*-Werror\b//g' "$f"; done < /tmp/werror.txt
+          while read -r f; do sed -i 's/\(^\|[[:space:]]\)-Werror\([[:space:]]\|\$\)/\1\2/g' "$f"; done < /tmp/werror.txt
           grep -rn -- '-Werror' --include=Makefile --include='Kbuild' . | head -5 || true
           echo "remaining -Werror count: $(grep -rn -- '-Werror' --include=Makefile --include='Kbuild' . | wc -l)"
 
