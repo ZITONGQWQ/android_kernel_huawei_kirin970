@@ -1,4 +1,4 @@
-﻿name: Build Kirin970 K414
+name: Build Kirin970 K414
 
 on:
   workflow_dispatch:
@@ -57,6 +57,14 @@ jobs:
           echo "=== fix 5: disable WERROR kconfig ==="
           chmod +x scripts/config 2>/dev/null || true
           ./scripts/config --file arch/arm64/configs/merge_kirin970_defconfig -d WERROR || true
+
+          echo "=== fix 6: ufshcd_scsi_to_upiu_lun bare inline -> extern ==="
+          grep -n 'ufshcd_scsi_to_upiu_lun' drivers/scsi/ufs/ufshcd.h || true
+          grep -n 'ufshcd_scsi_to_upiu_lun' drivers/scsi/ufs/ufshcd.c | head -3 || true
+          sed -i 's|^inline u8 ufshcd_scsi_to_upiu_lun(unsigned int scsi_lun);|extern u8 ufshcd_scsi_to_upiu_lun(unsigned int scsi_lun);|' drivers/scsi/ufs/ufshcd.h
+          sed -i 's|^inline u8 ufshcd_scsi_to_upiu_lun(unsigned int scsi_lun)$|u8 ufshcd_scsi_to_upiu_lun(unsigned int scsi_lun)|' drivers/scsi/ufs/ufshcd.c
+          grep -n 'ufshcd_scsi_to_upiu_lun' drivers/scsi/ufs/ufshcd.h || true
+          grep -n 'ufshcd_scsi_to_upiu_lun' drivers/scsi/ufs/ufshcd.c | head -3 || true
 
       - name: Diagnose stack protector support
         run: |
