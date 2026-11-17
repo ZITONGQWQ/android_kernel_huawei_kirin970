@@ -212,7 +212,7 @@ jobs:
           ./scripts/config --file ../out/.config -e HISPIPP_V200 -e HI_V500_WATCHDOG -e HISI_SR_AP_WATCHDOG -e SND_DA_COMBINE_MACHINE -e SND_SOC_SLIMBUS_DAI -e SND_DA_SEPARATE_MACHINE -e DA_COMBINE_V3_CODEC -e CODEC_DSP_MISC -e SOUND_TRIGGER -e HIFI_DSP_ONE_TRACK -e CGROUP_WRITEBACK -e MEMCG -e BLK_CGROUP -e HISI_BB -e HISILICON_PLATFORM_MAINTAIN -e HISI_MNTNDUMP -e HKIP_PRMEM_BYPASS -e POWER_HISI -e LPI_HKADC -e LPM_HKADC -e LOWPM_STATS -e MMC_SDHCI -e MMC_CQ_HCI -e HISI_MMC_DSM -e PCIE_KIRIN -e ARCH_KIRIN_PCIE -e PCIE_KIRIN_MNTN -e HUAWEI_DSM_KIRIN_CHIPSETS -e HISI_PARTITION_KIRIN970 -e HISI_BALONG_MODEM -e BALONG_MTD -e ICC_BALONG -e CONTEXTHUB -e CONTEXTHUB_SHMEM -e CONTEXTHUB_BOOT_STAT || true
           grep -E '^CONFIG_(HISPIPP_V200|HI_V500_WATCHDOG|SND_DA_COMBINE_MACHINE|CGROUP_WRITEBACK|HISI_BB|PCIE_KIRIN|HISI_BALONG_MODEM|CONTEXTHUB)=' ../out/.config || true
           grep -E '^CONFIG_(HISI_SECUREC|BLK_WBT|PLATFORM_SLIMBUS|FILE_MAP|HISPIPP)=' ../out/.config || true
-          echo "=== fix 31: turn OFF switches whose source files do not exist in this tree ===
+          echo "=== fix 31: turn OFF switches whose source files do not exist in this tree ==="
           ./scripts/config --file ../out/.config -d SND_DA_SEPARATE_MACHINE -d SND_ANALOG_LESS_MACHINE -d LOWPM_STATS -d LOWPM_DDR_STATE || true
           ls sound/soc/hisilicon/*.c | tr '\n' ' ' || true
           echo
