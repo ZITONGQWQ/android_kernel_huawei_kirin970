@@ -89,6 +89,7 @@ jobs:
           export CROSS_COMPILE=aarch64-linux-gnu-
           export CC=aarch64-linux-gnu-gcc-10
           mkdir -p ../out
+          export KCFLAGS="-Wno-error -Wno-error=strict-prototypes -Wno-error=implicit-int -Wno-error=implicit-function-declaration -Wno-error=date-time -Wno-error=designated-init -Wno-error=stringop-truncation -Wno-error=stringop-overflow -Wno-error=incompatible-pointer-types"
           make ARCH=arm64 O=../out HOSTCFLAGS="-fcommon -w" merge_kirin970_defconfig
           make ARCH=arm64 O=../out HOSTCFLAGS="-fcommon -w" CC=aarch64-linux-gnu-gcc-10 -j$(nproc --all)
 
