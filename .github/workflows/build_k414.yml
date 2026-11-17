@@ -198,6 +198,16 @@ jobs:
           echo "=== fix 28: CONFIG_VCODEC_PLATFORM_KIRIN970 has NO Kconfig in 4.14 tree -> select HiVCodecV200 directly (same mapping as 4.9) ==="
           ./scripts/config --file ../out/.config -e HI_VCODEC_VENC_HIVNA -e VCODEC_PLATFORM_HIVCODECV200 -e HI_VCODEC_VDEC_HIVNA || true
           grep -E '^CONFIG_(VCODEC_PLATFORM_HIVCODECV200|HI_VCODEC_VENC_HIVNA|VCODEC_PLATFORM_KIRIN970)=' ../out/.config || true
+          echo "=== fix 29: enable driver families that 4.9 had built-in but 4.14 gates behind Kconfig ==="
+          ./scripts/config --file ../out/.config \
+            -e HISI_SECUREC \
+            -e BLK_WBT -e BLK_WBT_MQ -e BLK_WBT_SQ \
+            -e PLATFORM_SLIMBUS -e SLIMBUS \
+            -e FILE_MAP \
+            -e HISPIPP -e IOMMU_API \
+            -e HKIP_PRMEM \
+            -e USB_F_RNDIS -e USB_CONFIGFS_RNDIS || true
+          grep -E '^CONFIG_(HISI_SECUREC|BLK_WBT|PLATFORM_SLIMBUS|FILE_MAP|HISPIPP)=' ../out/.config || true
           grep -E '^CONFIG_(KEY_MASK|VOLUME_KEY_MASK|KEYBOARD_HISI_GPIO_KEY|BCI_BATTERY)=' ../out/.config || true
           grep -E '^CONFIG_(BATTERY_DATA|HISI_BATTERY_DATA)=' ../out/.config || true
           grep -E '^CONFIG_(DEBUG_HKIP_PRMEM|HKIP_PRMEM)=' ../out/.config || true
@@ -235,6 +245,7 @@ jobs:
           name: Kirin970_K414_${{ env.NOW }}
           path: dist/
           if-no-files-found: warn
+
 
 
 
