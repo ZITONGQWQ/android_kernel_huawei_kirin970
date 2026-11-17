@@ -173,6 +173,9 @@ jobs:
           echo "=== fix 17: enable IPA_THERMAL family (mali hisilicon platform uses cdev->ipa_enabled/bound_event) ==="
           ./scripts/config --file ../out/.config -e THERMAL -e THERMAL_OF -e THERMAL_TSENSOR -e THERMAL_POWER_ACTOR_CPU -e IPA_THERMAL -e HISI_IPA_THERMAL || true
           grep -E '^CONFIG_(IPA_THERMAL|THERMAL_TSENSOR|THERMAL_POWER_ACTOR_CPU|HISI_IPA_THERMAL)=' ../out/.config || true
+          echo "=== fix 18: drop DEBUG_HKIP_PRMEM (test_prmem.c does not exist in this tree) ==="
+          ./scripts/config --file ../out/.config -d DEBUG_HKIP_PRMEM || true
+          grep -E '^CONFIG_(DEBUG_HKIP_PRMEM|HKIP_PRMEM)=' ../out/.config || true
           make ARCH=arm64 O=../out HOSTCFLAGS="-fcommon -w" olddefconfig
           echo "=== diag: core subsystems after olddefconfig ==="
           ls -l arch/arm64/configs/k414_device_defconfig || true
@@ -207,6 +210,7 @@ jobs:
           name: Kirin970_K414_${{ env.NOW }}
           path: dist/
           if-no-files-found: warn
+
 
 
 
