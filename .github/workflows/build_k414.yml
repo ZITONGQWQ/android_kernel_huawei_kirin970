@@ -112,6 +112,11 @@ jobs:
           echo "--- after ---"
           sed -n '553,562p' include/linux/printk.h
 
+          echo "=== fix 14: fs/inode.c references F2FS/HMFS/EXT4_SUPER_MAGIC without including linux/magic.h ==="
+          grep -n 'linux/magic.h' fs/inode.c || true
+          sed -i 's|^#include <linux/fs.h>$|#include <linux/fs.h>\n#include <linux/magic.h>|' fs/inode.c
+          sed -n '5,9p' fs/inode.c
+
           echo "=== fix 11: disable MODVERSIONS + RELOCATABLE + RANDOMIZE_BASE (KASLR selects RELOCATABLE -> -shared vmlinux rejects R_AARCH64_ABS32) ==="
           grep -n 'CONFIG_MODVERSIONS\|CONFIG_RELOCATABLE\|CONFIG_RANDOMIZE_BASE' arch/arm64/configs/k414_device_defconfig || true
           ./scripts/config --file arch/arm64/configs/k414_device_defconfig -d MODVERSIONS || true
