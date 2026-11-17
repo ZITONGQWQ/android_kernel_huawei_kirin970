@@ -66,6 +66,12 @@ jobs:
           grep -n 'ufshcd_scsi_to_upiu_lun' drivers/scsi/ufs/ufshcd.h || true
           grep -n 'ufshcd_scsi_to_upiu_lun' drivers/scsi/ufs/ufshcd.c | head -3 || true
 
+          echo "=== fix 7: const uint32_t max_buf used as array size (VLA init) ==="
+          grep -rl 'const uint32_t max_buf = 60;' drivers/ 2>/dev/null > /tmp/maxbuf.txt || true
+          cat /tmp/maxbuf.txt || true
+          while read -r f; do sed -i 's/const uint32_t max_buf = 60;/#define max_buf 60/' "$f"; done < /tmp/maxbuf.txt
+          grep -rn 'define max_buf 60' drivers/ 2>/dev/null | head -5 || true
+
       - name: Diagnose stack protector support
         run: |
           set +e
