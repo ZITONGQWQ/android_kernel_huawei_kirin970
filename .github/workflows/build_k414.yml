@@ -65,9 +65,10 @@ jobs:
           sed -i 's|^inline u8 ufshcd_scsi_to_upiu_lun(unsigned int scsi_lun)$|u8 ufshcd_scsi_to_upiu_lun(unsigned int scsi_lun)|' drivers/scsi/ufs/ufshcd.c
           echo "=== fix 19: guard tc_ns_smc_cmd phys assignments with CONFIG_AUTH_ENHANCE ==="
           python3 -c "import sys;p='drivers/hisi/tzdriver/core/smc_smp.c';s=open(p).read();o='\tg_cmd_data->in[index].token_phys = 0;\n\tg_cmd_data->in[index].token_h_phys = 0;\n\tg_cmd_data->in[index].params_phys = 0;\n\tg_cmd_data->in[index].params_h_phys = 0;\n';v='#ifdef CONFIG_AUTH_ENHANCE\n'+o+'#endif\n';assert o in s,\"smc_smp pattern not found\";open(p,'w').write(s.replace(o,v,1));print('fix19 ok')"
-          echo "=== fix 20: charging_core.h uses CONFIG_BATTERY_DATA but Kconfig symbol is HISI_BATTERY_DATA ==="
-          sed -i 's|^#ifdef CONFIG_BATTERY_DATA$|#ifdef CONFIG_HISI_BATTERY_DATA|' drivers/huawei_platform/power/charger/charger_ap/charging_core.h
-          grep -n 'HISI_BATTERY_DATA\|TEMP_PARA_LEVEL' drivers/huawei_platform/power/charger/charger_ap/charging_core.h | head -5 || true
+          echo "=== fix 21: wireless_protocol_qi.h uses ENOTSUPP, needs linux/errno.h ==="
+          python3 -c "p='include/chipset_common/hwpower/protocol/wireless_protocol_qi.h';s=open(p).read();assert '#include <linux/errno.h>' not in s;n=s.replace('#include', '#include <linux/errno.h>'+chr(10)+'#include', 1);open(p,'w').write(n);print('fix21 ok')"
+          echo "=== fix 22: revert bogus HISI_BATTERY_DATA rename; enable CONFIG_BATTERY_DATA instead ==="
+          sed -i 's|^#ifdef CONFIG_HISI_BATTERY_DATA$|#ifdef CONFIG_BATTERY_DATA|' drivers/huawei_platform/power/charger/charger_ap/charging_core.h
           grep -n 'ufshcd_scsi_to_upiu_lun' drivers/scsi/ufs/ufshcd.h || true
           grep -n 'ufshcd_scsi_to_upiu_lun' drivers/scsi/ufs/ufshcd.c | head -3 || true
 
@@ -180,6 +181,12 @@ jobs:
           grep -E '^CONFIG_(IPA_THERMAL|THERMAL_TSENSOR|THERMAL_POWER_ACTOR_CPU|HISI_IPA_THERMAL)=' ../out/.config || true
           echo "=== fix 18: drop DEBUG_HKIP_PRMEM (test_prmem.c does not exist in this tree) ==="
           ./scripts/config --file ../out/.config -d DEBUG_HKIP_PRMEM || true
+          echo "=== fix 23: RDR_MEM=y takes the log_bbox_cfg/log_rdr_cfg branch; enable RDR_MEM+MNTN so tlogger/Makefile skips missing log_pages_cfg.o ==="
+          ./scripts/config --file ../out/.config -e MNTN -e RDR_MEM -e HISI_BB || true
+          grep -E '^CONFIG_(MNTN|RDR_MEM|HISI_BB|TEELOG)=' ../out/.config || true
+          echo "=== fix 24: CONFIG_BATTERY_DATA gates battery_data.h (charging_core.h needs TEMP_PARA_LEVEL) ==="
+          ./scripts/config --file ../out/.config -e BATTERY_DATA || true
+          grep -E '^CONFIG_(BATTERY_DATA|HISI_BATTERY_DATA)=' ../out/.config || true
           grep -E '^CONFIG_(DEBUG_HKIP_PRMEM|HKIP_PRMEM)=' ../out/.config || true
           make ARCH=arm64 O=../out HOSTCFLAGS="-fcommon -w" olddefconfig
           echo "=== diag: core subsystems after olddefconfig ==="
@@ -215,6 +222,7 @@ jobs:
           name: Kirin970_K414_${{ env.NOW }}
           path: dist/
           if-no-files-found: warn
+
 
 
 
