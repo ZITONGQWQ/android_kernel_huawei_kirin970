@@ -1,4 +1,4 @@
-﻿name: Build Kirin970 K414
+name: Build Kirin970 K414
 
 on:
   workflow_dispatch:
@@ -36,11 +36,25 @@ jobs:
           grep -n 'elevator_exit' block/blk.h | head -10 || true
           sed -i 's/^\([[:space:]]*\)elevator_exit(q, e);[[:space:]]*$/\1__elevator_exit(q, e);/' block/blk.h
           grep -n 'elevator_exit' block/blk.h | head -10 || true
+
           echo "=== fix 2: fs/f2fs/sdp.h const int array size ==="
           grep -n 'RESERVED_DATA_LEN' fs/f2fs/sdp.h | head -10 || true
           sed -i 's/static const int RESERVED_DATA_LEN = 8;/#define RESERVED_DATA_LEN 8/' fs/f2fs/sdp.h
           grep -n 'RESERVED_DATA_LEN' fs/f2fs/sdp.h | head -10 || true
-          echo "=== fix 3: disable WERROR ==="
+
+          echo "=== fix 3: strip hardcoded -Werror from every Makefile ==="
+          grep -rl -- '-Werror' --include=Makefile --include='Kbuild' . > /tmp/werror.txt || true
+          wc -l /tmp/werror.txt || true
+          cat /tmp/werror.txt || true
+          while read -r f; do sed -i 's/[[:space:]]*-Werror\b//g' "$f"; done < /tmp/werror.txt
+          grep -rn -- '-Werror' --include=Makefile --include='Kbuild' . | head -5 || true
+          echo "remaining -Werror count: $(grep -rn -- '-Werror' --include=Makefile --include='Kbuild' . | wc -l)"
+
+          echo "=== fix 4: allow C99 in huawei lcdkit subtree ==="
+          echo 'subdir-ccflags-y += -std=gnu99' >> drivers/devkit/lcdkit/lcdkit1.0/Makefile
+          cat drivers/devkit/lcdkit/lcdkit1.0/Makefile
+
+          echo "=== fix 5: disable WERROR kconfig ==="
           chmod +x scripts/config 2>/dev/null || true
           ./scripts/config --file arch/arm64/configs/merge_kirin970_defconfig -d WERROR || true
 
