@@ -146,8 +146,15 @@ jobs:
           mkdir -p ../out
           export KCFLAGS="-w -Wno-error -fno-stack-protector"
           make ARCH=arm64 O=../out HOSTCFLAGS="-fcommon -w" k414_device_defconfig
+          echo "=== fix 12: force CMA family on (4.14 gfp.h references MIGRATE_CMA unconditionally) ==="
+          grep -E 'CONFIG_(CMA|MIGRATION|MEMORY_ISOLATION|COMPACTION|DMA_CMA|HISI_CMA)' ../out/.config || true
+          ./scripts/config --file ../out/.config -e MMU -e MIGRATION -e COMPACTION -e MEMORY_ISOLATION -e CMA -e DMA_CMA -e HISI_CMA -e CMA_SIZE_SEL_MBYTES --set-val CMA_AREAS 7 --set-val CMA_SIZE_MBYTES 32 || true
+          make ARCH=arm64 O=../out HOSTCFLAGS="-fcommon -w" olddefconfig
           echo "--- effective config check ---"
           grep -n 'CONFIG_MODVERSIONS\|CONFIG_RELOCATABLE\|CONFIG_CC_STACKPROTECTOR' ../out/.config || true
+          grep -E 'CONFIG_(CMA|MIGRATION|MEMORY_ISOLATION|COMPACTION)=' ../out/.config || true
+          echo "--- how many symbols the 4.9->4.14 oldconfig dropped ---"
+          grep -c '^# CONFIG_.* is not set' ../out/.config || true
           make ARCH=arm64 O=../out HOSTCFLAGS="-fcommon -w" CC=aarch64-linux-gnu-gcc-10 -j$(nproc --all)
 
       - name: Show result
@@ -172,4 +179,5 @@ jobs:
           name: Kirin970_K414_${{ env.NOW }}
           path: dist/
           if-no-files-found: warn
+
 
