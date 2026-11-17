@@ -56,7 +56,7 @@ jobs:
 
           echo "=== fix 5: disable WERROR kconfig ==="
           chmod +x scripts/config 2>/dev/null || true
-          ./scripts/config --file arch/arm64/configs/merge_kirin970_defconfig -d WERROR || true
+          ./scripts/config --file arch/arm64/configs/k414_device_defconfig -d WERROR || true
 
           echo "=== fix 6: ufshcd_scsi_to_upiu_lun bare inline -> extern ==="
           grep -n 'ufshcd_scsi_to_upiu_lun' drivers/scsi/ufs/ufshcd.h || true
@@ -107,11 +107,11 @@ jobs:
           grep -n 'stack-clash' Makefile || true
 
           echo "=== fix 11: disable MODVERSIONS + RELOCATABLE + RANDOMIZE_BASE (KASLR selects RELOCATABLE -> -shared vmlinux rejects R_AARCH64_ABS32) ==="
-          grep -n 'CONFIG_MODVERSIONS\|CONFIG_RELOCATABLE\|CONFIG_RANDOMIZE_BASE' arch/arm64/configs/merge_kirin970_defconfig || true
-          ./scripts/config --file arch/arm64/configs/merge_kirin970_defconfig -d MODVERSIONS || true
-          ./scripts/config --file arch/arm64/configs/merge_kirin970_defconfig -d RANDOMIZE_BASE || true
-          ./scripts/config --file arch/arm64/configs/merge_kirin970_defconfig -d RELOCATABLE || true
-          grep -n 'CONFIG_MODVERSIONS\|CONFIG_RELOCATABLE\|CONFIG_RANDOMIZE_BASE' arch/arm64/configs/merge_kirin970_defconfig || true
+          grep -n 'CONFIG_MODVERSIONS\|CONFIG_RELOCATABLE\|CONFIG_RANDOMIZE_BASE' arch/arm64/configs/k414_device_defconfig || true
+          ./scripts/config --file arch/arm64/configs/k414_device_defconfig -d MODVERSIONS || true
+          ./scripts/config --file arch/arm64/configs/k414_device_defconfig -d RANDOMIZE_BASE || true
+          ./scripts/config --file arch/arm64/configs/k414_device_defconfig -d RELOCATABLE || true
+          grep -n 'CONFIG_MODVERSIONS\|CONFIG_RELOCATABLE\|CONFIG_RANDOMIZE_BASE' arch/arm64/configs/k414_device_defconfig || true
 
       - name: Diagnose stack protector support
         run: |
@@ -127,15 +127,15 @@ jobs:
               -isystem "$($CC -print-file-name=include)" -c -x c /dev/null -o /tmp/t2.o
           echo "ccoption_rc=$?"
           echo "--- defconfig stackp entries ---"
-          grep -n 'CC_STACKPROTECTOR' arch/arm64/configs/merge_kirin970_defconfig || true
+          grep -n 'CC_STACKPROTECTOR' arch/arm64/configs/k414_device_defconfig || true
 
       - name: Fallback relax stack protector
         run: |
           set -e
           chmod +x scripts/config 2>/dev/null || true
-          ./scripts/config --file arch/arm64/configs/merge_kirin970_defconfig \
+          ./scripts/config --file arch/arm64/configs/k414_device_defconfig \
             -d CC_STACKPROTECTOR_STRONG -d CC_STACKPROTECTOR_REGULAR -e CC_STACKPROTECTOR_NONE || true
-          grep -n 'CC_STACKPROTECTOR' arch/arm64/configs/merge_kirin970_defconfig || true
+          grep -n 'CC_STACKPROTECTOR' arch/arm64/configs/k414_device_defconfig || true
 
       - name: Build Kernel
         run: |
@@ -145,7 +145,7 @@ jobs:
           export CC=aarch64-linux-gnu-gcc-10
           mkdir -p ../out
           export KCFLAGS="-w -Wno-error -fno-stack-protector"
-          make ARCH=arm64 O=../out HOSTCFLAGS="-fcommon -w" merge_kirin970_defconfig
+          make ARCH=arm64 O=../out HOSTCFLAGS="-fcommon -w" k414_device_defconfig
           echo "--- effective config check ---"
           grep -n 'CONFIG_MODVERSIONS\|CONFIG_RELOCATABLE\|CONFIG_CC_STACKPROTECTOR' ../out/.config || true
           make ARCH=arm64 O=../out HOSTCFLAGS="-fcommon -w" CC=aarch64-linux-gnu-gcc-10 -j$(nproc --all)
@@ -172,3 +172,4 @@ jobs:
           name: Kirin970_K414_${{ env.NOW }}
           path: dist/
           if-no-files-found: warn
+
