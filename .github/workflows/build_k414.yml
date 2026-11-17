@@ -63,6 +63,11 @@ jobs:
           grep -n 'ufshcd_scsi_to_upiu_lun' drivers/scsi/ufs/ufshcd.c | head -3 || true
           sed -i 's|^inline u8 ufshcd_scsi_to_upiu_lun(unsigned int scsi_lun);|extern u8 ufshcd_scsi_to_upiu_lun(unsigned int scsi_lun);|' drivers/scsi/ufs/ufshcd.h
           sed -i 's|^inline u8 ufshcd_scsi_to_upiu_lun(unsigned int scsi_lun)$|u8 ufshcd_scsi_to_upiu_lun(unsigned int scsi_lun)|' drivers/scsi/ufs/ufshcd.c
+          echo "=== fix 19: guard tc_ns_smc_cmd phys assignments with CONFIG_AUTH_ENHANCE ==="
+          python3 -c "import sys;p='drivers/hisi/tzdriver/core/smc_smp.c';s=open(p).read();o='\tg_cmd_data->in[index].token_phys = 0;\n\tg_cmd_data->in[index].token_h_phys = 0;\n\tg_cmd_data->in[index].params_phys = 0;\n\tg_cmd_data->in[index].params_h_phys = 0;\n';v='#ifdef CONFIG_AUTH_ENHANCE\n'+o+'#endif\n';assert o in s,\"smc_smp pattern not found\";open(p,'w').write(s.replace(o,v,1));print('fix19 ok')"
+          echo "=== fix 20: charging_core.h uses CONFIG_BATTERY_DATA but Kconfig symbol is HISI_BATTERY_DATA ==="
+          sed -i 's|^#ifdef CONFIG_BATTERY_DATA$|#ifdef CONFIG_HISI_BATTERY_DATA|' drivers/huawei_platform/power/charger/charger_ap/charging_core.h
+          grep -n 'HISI_BATTERY_DATA\|TEMP_PARA_LEVEL' drivers/huawei_platform/power/charger/charger_ap/charging_core.h | head -5 || true
           grep -n 'ufshcd_scsi_to_upiu_lun' drivers/scsi/ufs/ufshcd.h || true
           grep -n 'ufshcd_scsi_to_upiu_lun' drivers/scsi/ufs/ufshcd.c | head -3 || true
 
@@ -210,6 +215,7 @@ jobs:
           name: Kirin970_K414_${{ env.NOW }}
           path: dist/
           if-no-files-found: warn
+
 
 
 
