@@ -117,6 +117,12 @@ jobs:
           sed -i 's|^#include <linux/fs.h>$|#include <linux/fs.h>\n#include <linux/magic.h>|' fs/inode.c
           sed -n '5,9p' fs/inode.c
 
+          echo "=== fix 15: neutralize Huawei i_crypt_info use in fscrypt_prepare_setattr (FS_ENCRYPTION off here) ==="
+          grep -n 'i_crypt_info' include/linux/fscrypt.h || true
+          python3 -c "import io;p='include/linux/fscrypt.h';s=io.open(p,encoding='utf-8').read();o='if (inode->i_crypt_info &&\n\t\t\t\t(inode->i_crypt_info->ci_hw_enc_flag & F2FS_XATTR_SDP_SECE_ENABLE_FLAG)) {';assert o in s,'PATTERN-NOT-FOUND';s=s.replace(o,'if (0) {',1);io.open(p,'w',encoding='utf-8').write(s);print('PATCHED')"
+          echo "--- after ---"
+          sed -n '170,186p' include/linux/fscrypt.h
+
           echo "=== fix 11: disable MODVERSIONS + RELOCATABLE + RANDOMIZE_BASE (KASLR selects RELOCATABLE -> -shared vmlinux rejects R_AARCH64_ABS32) ==="
           grep -n 'CONFIG_MODVERSIONS\|CONFIG_RELOCATABLE\|CONFIG_RANDOMIZE_BASE' arch/arm64/configs/k414_device_defconfig || true
           ./scripts/config --file arch/arm64/configs/k414_device_defconfig -d MODVERSIONS || true
