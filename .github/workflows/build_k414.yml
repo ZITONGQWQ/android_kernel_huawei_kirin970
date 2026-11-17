@@ -110,6 +110,10 @@ jobs:
           grep -q 'stackprotector_shim.o' lib/Makefile || echo 'obj-y += stackprotector_shim.o' >> lib/Makefile
           grep -n 'stackprotector_shim' lib/Makefile || true
           sed -i 's|^KBUILD_CFLAGS += -fno-stack-protector$|KBUILD_CFLAGS += -fno-stack-protector -fno-stack-clash-protection|' Makefile
+          echo "=== fix 27: restore KIRIN970 -> HiVCodecV200 mapping in venc Makefile (4.14 tree dropped it) ==="
+          VMF=drivers/vcodec/hi_vcodec/venc_hivna/drv/venc/Makefile
+          python3 -c "import io;p='$VMF';s=io.open(p,encoding='utf-8').read();needle='ifeq (\$(CONFIG_VCODEC_PLATFORM_HIVCODECV210), y)';add='ifeq (\$(CONFIG_VCODEC_PLATFORM_KIRIN970), y)\nPLATFORM := HiVCodecV200\nendif\n\n';s=s.replace(needle,add+needle,1) if 'CONFIG_VCODEC_PLATFORM_KIRIN970' not in s else s;io.open(p,'w',encoding='utf-8').write(s)"
+          grep -n 'KIRIN970\|HiVCodecV200' $VMF | head -5 || true
           grep -n 'stack-clash' Makefile || true
           echo "=== fix 13: printk.h #else branch must not reference local_clock (CONFIG_HISI_TIME has no Kconfig in this tree) ==="
           grep -n 'local_clock\|sched_clock' include/linux/printk.h || true
@@ -228,6 +232,7 @@ jobs:
           name: Kirin970_K414_${{ env.NOW }}
           path: dist/
           if-no-files-found: warn
+
 
 
 
