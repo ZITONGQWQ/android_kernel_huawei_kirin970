@@ -188,6 +188,9 @@ jobs:
           ./scripts/config --file ../out/.config -e BATTERY_DATA -e BCI_BATTERY -e HISI_BATTERY_DATA || true
           echo "=== fix 25: CONFIG_KEY_MASK gates keypad.h KEY_ENABLE_MASK / key_mask_ctl (device has VOLUME_KEY_MASK, a different symbol) ==="
           ./scripts/config --file ../out/.config -e KEY_MASK -e KEYBOARD_HISI_GPIO_KEY -e VOLUME_KEY_MASK || true
+          echo "=== fix 26: CONFIG_MAS_BLK gates SHOST_QUIRK_*/queue_quirk_flag used unconditionally in ufshcd.c ==="
+          ./scripts/config --file ../out/.config -e MAS_BLK || true
+          grep -E '^CONFIG_MAS_BLK=' ../out/.config || true
           grep -E '^CONFIG_(KEY_MASK|VOLUME_KEY_MASK|KEYBOARD_HISI_GPIO_KEY|BCI_BATTERY)=' ../out/.config || true
           grep -E '^CONFIG_(BATTERY_DATA|HISI_BATTERY_DATA)=' ../out/.config || true
           grep -E '^CONFIG_(DEBUG_HKIP_PRMEM|HKIP_PRMEM)=' ../out/.config || true
@@ -225,6 +228,7 @@ jobs:
           name: Kirin970_K414_${{ env.NOW }}
           path: dist/
           if-no-files-found: warn
+
 
 
 
