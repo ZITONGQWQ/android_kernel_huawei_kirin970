@@ -1,4 +1,4 @@
-﻿name: Build Kirin970 K414
+name: Build Kirin970 K414
 
 on:
   workflow_dispatch:
@@ -83,6 +83,28 @@ jobs:
           sed -i 's|^KBUILD_CFLAGS += \$(stackp-flag)$|KBUILD_CFLAGS += -fno-stack-protector|' Makefile
           grep -n 'fno-stack-protector' Makefile || true
           grep -rn -- '-fstack-protector' drivers/vcodec/ 2>/dev/null | head -5 || true
+
+          echo "=== fix 10: provide __stack_chk_guard/__stack_chk_fail (tree ships no definition source) ==="
+          {
+            echo '#include <linux/kernel.h>'
+            echo '#include <linux/export.h>'
+            echo '#include <linux/cache.h>'
+            echo '#include <linux/types.h>'
+            echo ''
+            echo 'unsigned long __stack_chk_guard __ro_after_init = 0x0a0b0c0d0e0f1234UL;'
+            echo 'EXPORT_SYMBOL(__stack_chk_guard);'
+            echo ''
+            echo 'void __stack_chk_fail(void)'
+            echo '{'
+            echo '	panic("stack-protector: kernel stack is corrupted in: %pS", __builtin_return_address(0));'
+            echo '}'
+            echo 'EXPORT_SYMBOL(__stack_chk_fail);'
+          } > lib/stackprotector_shim.c
+          cat lib/stackprotector_shim.c
+          grep -q 'stackprotector_shim.o' lib/Makefile || echo 'obj-y += stackprotector_shim.o' >> lib/Makefile
+          grep -n 'stackprotector_shim' lib/Makefile || true
+          sed -i 's|^KBUILD_CFLAGS += -fno-stack-protector$|KBUILD_CFLAGS += -fno-stack-protector -fno-stack-clash-protection|' Makefile
+          grep -n 'stack-clash' Makefile || true
 
       - name: Diagnose stack protector support
         run: |
