@@ -185,7 +185,10 @@ jobs:
           ./scripts/config --file ../out/.config -e MNTN -e RDR_MEM -e HISI_BB || true
           grep -E '^CONFIG_(MNTN|RDR_MEM|HISI_BB|TEELOG)=' ../out/.config || true
           echo "=== fix 24: CONFIG_BATTERY_DATA gates battery_data.h (charging_core.h needs TEMP_PARA_LEVEL) ==="
-          ./scripts/config --file ../out/.config -e BATTERY_DATA || true
+          ./scripts/config --file ../out/.config -e BATTERY_DATA -e BCI_BATTERY -e HISI_BATTERY_DATA || true
+          echo "=== fix 25: CONFIG_KEY_MASK gates keypad.h KEY_ENABLE_MASK / key_mask_ctl (device has VOLUME_KEY_MASK, a different symbol) ==="
+          ./scripts/config --file ../out/.config -e KEY_MASK -e KEYBOARD_HISI_GPIO_KEY -e VOLUME_KEY_MASK || true
+          grep -E '^CONFIG_(KEY_MASK|VOLUME_KEY_MASK|KEYBOARD_HISI_GPIO_KEY|BCI_BATTERY)=' ../out/.config || true
           grep -E '^CONFIG_(BATTERY_DATA|HISI_BATTERY_DATA)=' ../out/.config || true
           grep -E '^CONFIG_(DEBUG_HKIP_PRMEM|HKIP_PRMEM)=' ../out/.config || true
           make ARCH=arm64 O=../out HOSTCFLAGS="-fcommon -w" olddefconfig
@@ -222,6 +225,7 @@ jobs:
           name: Kirin970_K414_${{ env.NOW }}
           path: dist/
           if-no-files-found: warn
+
 
 
 
