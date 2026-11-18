@@ -213,6 +213,10 @@ jobs:
           grep -E '^CONFIG_(HISPIPP_V200|HI_V500_WATCHDOG|SND_DA_COMBINE_MACHINE|CGROUP_WRITEBACK|HISI_BB|PCIE_KIRIN|HISI_BALONG_MODEM|CONTEXTHUB)=' ../out/.config || true
           grep -E '^CONFIG_(HISI_SECUREC|BLK_WBT|PLATFORM_SLIMBUS|FILE_MAP|HISPIPP)=' ../out/.config || true
           echo "=== fix 31: turn OFF switches whose source files do not exist in this tree ==="
+          echo "=== fix 32: disable whole subsystems whose .c sources are MISSING in this 4.14 tree (grouped by ld referencer) ==="
+          ./scripts/config --file ../out/.config -d HISPIPP -d HISPIPP_V200 -d HISPIPP_V210 -d HISPIPP_V250 -d HISPIPP_V300 -d HISPIPP_V320 -d HISPIPP_V350 -d USE_CAMERA3_ARCH -d HUAWEI_CAMERA -d SOUND_TRIGGER -d SND_DA_COMBINE_MACHINE -d SND_SOC_SLIMBUS_DAI -d CONTEXTHUB -d CONTEXTHUB_SHMEM -d CONTEXTHUB_BOOT_STAT -d HISI_BALONG_MODEM -d BALONG_MTD -d ICC_BALONG -d PCIE_KIRIN -d ARCH_KIRIN_PCIE -d PCIE_KIRIN_MNTN -d USB_F_RNDIS -d USB_CONFIGFS_RNDIS -d HI_V500_WATCHDOG -d HISI_SR_AP_WATCHDOG -d HISI_SP805_WATCHDOG -d HKIP_PRMEM -d HISI_PAGECACHE_HELPER -d HISI_BB -d HISILICON_PLATFORM_MAINTAIN -d HISI_MNTNDUMP || true
+          grep -E '^CONFIG_(HISPIPP|USE_CAMERA3_ARCH|SOUND_TRIGGER|CONTEXTHUB|HISI_BALONG_MODEM|PCIE_KIRIN|USB_F_RNDIS|HI_V500_WATCHDOG|HKIP_PRMEM)=' ../out/.config || true
+          grep -cE '^# CONFIG_(HISPIPP|USE_CAMERA3_ARCH|SOUND_TRIGGER|CONTEXTHUB|HISI_BALONG_MODEM|PCIE_KIRIN|USB_F_RNDIS)=' ../out/.config || true
           ./scripts/config --file ../out/.config -d SND_DA_SEPARATE_MACHINE -d SND_ANALOG_LESS_MACHINE -d LOWPM_STATS -d LOWPM_DDR_STATE || true
           ls sound/soc/hisilicon/*.c | tr '\n' ' ' || true
           echo
