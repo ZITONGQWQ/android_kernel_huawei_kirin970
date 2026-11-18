@@ -1,4 +1,4 @@
-name: Build Kirin970 K414
+﻿name: Build Kirin970 K414
 
 on:
   workflow_dispatch:
@@ -14,4 +14,272 @@ jobs:
           fetch-depth: 1
 
       - name: GetTime
-        run: echo NOW=$(date
+        run: echo "NOW=$(date +%Y%m%d%H%M)" >> $GITHUB_ENV
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential bc bison flex libssl-dev \
+            libelf-dev device-tree-compiler python3 git curl wget xz-utils zip \
+            gcc-10-aarch64-linux-gnu
+
+      - name: Show toolchain
+        run: |
+          uname -a
+          aarch64-linux-gnu-gcc-10 --version | head -1
+          python3 --version
+
+      - name: Patch known GCC10+ breakages
+        run: |
+          set -e
+          echo "=== fix 1: block/blk.h elevator_exit self-recursion ==="
+          grep -n 'elevator_exit' block/blk.h | head -10 || true
+          sed -i 's/^\([[:space:]]*\)elevator_exit(q, e);[[:space:]]*$/\1__elevator_exit(q, e);/' block/blk.h
+          grep -n 'elevator_exit' block/blk.h | head -10 || true
+
+          echo "=== fix 2: fs/f2fs/sdp.h const int array size ==="
+          grep -n 'RESERVED_DATA_LEN' fs/f2fs/sdp.h | head -10 || true
+          sed -i 's/static const int RESERVED_DATA_LEN = 8;/#define RESERVED_DATA_LEN 8/' fs/f2fs/sdp.h
+          grep -n 'RESERVED_DATA_LEN' fs/f2fs/sdp.h | head -10 || true
+
+          echo "=== fix 3: strip hardcoded -Werror from every Makefile ==="
+          grep -rl -- '-Werror' --include=Makefile --include='Kbuild' . > /tmp/werror.txt || true
+          wc -l /tmp/werror.txt || true
+          cat /tmp/werror.txt || true
+          while read -r f; do sed -i 's/\(^\|[[:space:]]\)-Werror\([[:space:]]\|\$\)/\1\2/g' "$f"; done < /tmp/werror.txt
+          grep -rn -- '-Werror' --include=Makefile --include='Kbuild' . | head -5 || true
+          echo "remaining -Werror count: $(grep -rn -- '-Werror' --include=Makefile --include='Kbuild' . | wc -l)"
+
+          echo "=== fix 4: allow C99 in huawei lcdkit subtree ==="
+          echo 'subdir-ccflags-y += -std=gnu99' >> drivers/devkit/lcdkit/lcdkit1.0/Makefile
+          cat drivers/devkit/lcdkit/lcdkit1.0/Makefile
+
+          echo "=== fix 5: disable WERROR kconfig ==="
+          chmod +x scripts/config 2>/dev/null || true
+          ./scripts/config --file arch/arm64/configs/k414_device_defconfig -d WERROR || true
+
+          echo "=== fix 6: ufshcd_scsi_to_upiu_lun bare inline -> extern ==="
+          grep -n 'ufshcd_scsi_to_upiu_lun' drivers/scsi/ufs/ufshcd.h || true
+          grep -n 'ufshcd_scsi_to_upiu_lun' drivers/scsi/ufs/ufshcd.c | head -3 || true
+          sed -i 's|^inline u8 ufshcd_scsi_to_upiu_lun(unsigned int scsi_lun);|extern u8 ufshcd_scsi_to_upiu_lun(unsigned int scsi_lun);|' drivers/scsi/ufs/ufshcd.h
+          sed -i 's|^inline u8 ufshcd_scsi_to_upiu_lun(unsigned int scsi_lun)$|u8 ufshcd_scsi_to_upiu_lun(unsigned int scsi_lun)|' drivers/scsi/ufs/ufshcd.c
+          echo "=== fix 19: guard tc_ns_smc_cmd phys assignments with CONFIG_AUTH_ENHANCE ==="
+          python3 -c "import sys;p='drivers/hisi/tzdriver/core/smc_smp.c';s=open(p).read();o='\tg_cmd_data->in[index].token_phys = 0;\n\tg_cmd_data->in[index].token_h_phys = 0;\n\tg_cmd_data->in[index].params_phys = 0;\n\tg_cmd_data->in[index].params_h_phys = 0;\n';v='#ifdef CONFIG_AUTH_ENHANCE\n'+o+'#endif\n';assert o in s,\"smc_smp pattern not found\";open(p,'w').write(s.replace(o,v,1));print('fix19 ok')"
+          echo "=== fix 21: wireless_protocol_qi.h uses ENOTSUPP, needs linux/errno.h ==="
+          python3 -c "p='include/chipset_common/hwpower/protocol/wireless_protocol_qi.h';s=open(p).read();assert '#include <linux/errno.h>' not in s;n=s.replace('#include', '#include <linux/errno.h>'+chr(10)+'#include', 1);open(p,'w').write(n);print('fix21 ok')"
+          echo "=== fix 22: revert bogus HISI_BATTERY_DATA rename; enable CONFIG_BATTERY_DATA instead ==="
+          sed -i 's|^#ifdef CONFIG_HISI_BATTERY_DATA$|#ifdef CONFIG_BATTERY_DATA|' drivers/huawei_platform/power/charger/charger_ap/charging_core.h
+          grep -n 'ufshcd_scsi_to_upiu_lun' drivers/scsi/ufs/ufshcd.h || true
+          grep -n 'ufshcd_scsi_to_upiu_lun' drivers/scsi/ufs/ufshcd.c | head -3 || true
+
+          echo "=== fix 7: const uint32_t max_buf used as array size (VLA init) ==="
+          grep -rl 'const uint32_t max_buf = 60;' drivers/ 2>/dev/null > /tmp/maxbuf.txt || true
+          cat /tmp/maxbuf.txt || true
+          while read -r f; do sed -i 's/const uint32_t max_buf = 60;/#define max_buf 60/' "$f"; done < /tmp/maxbuf.txt
+          grep -rn 'define max_buf 60' drivers/ 2>/dev/null | head -5 || true
+
+          echo "=== fix 8: strip -fstack-protector* from all Makefiles/Kbuild (tree lacks __stack_chk_guard) ==="
+          grep -rl -- 'fstack-protector' --include=Makefile --include='Kbuild' --include='*.mk' . > /tmp/sp.txt || true
+          wc -l /tmp/sp.txt || true
+          cat /tmp/sp.txt || true
+          while read -r f; do sed -i 's/[[:space:]]*-fstack-protector[a-z-]*//g' "$f"; done < /tmp/sp.txt
+          echo "remaining fstack-protector: $(grep -rn -- 'fstack-protector' --include=Makefile --include='Kbuild' --include='*.mk' . | wc -l)"
+          echo "=== fix 9: force -fno-stack-protector in top-level Makefile (tree has no __stack_chk_guard definition) ==="
+          grep -n 'stackp-flag' Makefile || true
+          sed -i 's|^KBUILD_CFLAGS += \$(stackp-flag)$|KBUILD_CFLAGS += -fno-stack-protector|' Makefile
+          grep -n 'fno-stack-protector' Makefile || true
+          grep -rn -- '-fstack-protector' drivers/vcodec/ 2>/dev/null | head -5 || true
+
+          echo "=== fix 10: provide __stack_chk_guard/__stack_chk_fail (tree ships no definition source) ==="
+          {
+            echo '#include <linux/kernel.h>'
+            echo '#include <linux/export.h>'
+            echo '#include <linux/cache.h>'
+            echo '#include <linux/types.h>'
+            echo ''
+            echo 'unsigned long __stack_chk_guard __ro_after_init = 0x0a0b0c0d0e0f1234UL;'
+            echo 'EXPORT_SYMBOL(__stack_chk_guard);'
+            echo ''
+            echo 'void __stack_chk_fail(void)'
+            echo '{'
+            echo '	panic("stack-protector: kernel stack is corrupted in: %pS", __builtin_return_address(0));'
+            echo '}'
+            echo 'EXPORT_SYMBOL(__stack_chk_fail);'
+          } > lib/stackprotector_shim.c
+          cat lib/stackprotector_shim.c
+          grep -q 'stackprotector_shim.o' lib/Makefile || echo 'obj-y += stackprotector_shim.o' >> lib/Makefile
+          grep -n 'stackprotector_shim' lib/Makefile || true
+          sed -i 's|^KBUILD_CFLAGS += -fno-stack-protector$|KBUILD_CFLAGS += -fno-stack-protector -fno-stack-clash-protection|' Makefile
+          echo "=== fix 27: restore KIRIN970 -> HiVCodecV200 mapping in venc Makefile (4.14 tree dropped it) ==="
+          VMF=drivers/vcodec/hi_vcodec/venc_hivna/drv/venc/Makefile
+          python3 -c "import io;p='$VMF';s=io.open(p,encoding='utf-8').read();needle='ifeq (\$(CONFIG_VCODEC_PLATFORM_HIVCODECV210), y)';add='ifeq (\$(CONFIG_VCODEC_PLATFORM_KIRIN970), y)\nPLATFORM := HiVCodecV200\nendif\n\n';s=s.replace(needle,add+needle,1) if 'CONFIG_VCODEC_PLATFORM_KIRIN970' not in s else s;io.open(p,'w',encoding='utf-8').write(s)"
+          grep -n 'KIRIN970\|HiVCodecV200' $VMF | head -5 || true
+          grep -n 'stack-clash' Makefile || true
+          echo "=== fix 13: printk.h #else branch must not reference local_clock (CONFIG_HISI_TIME has no Kconfig in this tree) ==="
+          grep -n 'local_clock\|sched_clock' include/linux/printk.h || true
+          sed -i 's|^extern u64 local_clock(void);$|extern unsigned long long notrace sched_clock(void);|' include/linux/printk.h
+          sed -i '555,562 s|return local_clock();|return (u64)sched_clock();|' include/linux/printk.h
+          echo "--- after ---"
+          sed -n '553,562p' include/linux/printk.h
+
+          echo "=== fix 14: fs/inode.c references F2FS/HMFS/EXT4_SUPER_MAGIC without including linux/magic.h ==="
+          grep -n 'linux/magic.h' fs/inode.c || true
+          sed -i 's|^#include <linux/fs.h>$|#include <linux/fs.h>\n#include <linux/magic.h>|' fs/inode.c
+          sed -n '5,9p' fs/inode.c
+
+          echo "=== fix 15: neutralize Huawei i_crypt_info use in fscrypt_prepare_setattr (FS_ENCRYPTION off here) ==="
+          grep -n 'i_crypt_info' include/linux/fscrypt.h || true
+          python3 -c "import io;p='include/linux/fscrypt.h';s=io.open(p,encoding='utf-8').read();o='if (inode->i_crypt_info &&\n\t\t\t\t(inode->i_crypt_info->ci_hw_enc_flag & F2FS_XATTR_SDP_SECE_ENABLE_FLAG)) {';assert o in s,'PATTERN-NOT-FOUND';s=s.replace(o,'if (0) {',1);io.open(p,'w',encoding='utf-8').write(s);print('PATCHED')"
+          echo "--- after ---"
+          sed -n '170,186p' include/linux/fscrypt.h
+
+          echo "=== fix 16: disable HISI_DPU_DISP (default y but dpu/device/chrdev sources are absent; device uses HISI_FB_970/dss) ==="
+          ./scripts/config --file arch/arm64/configs/k414_device_defconfig -d HISI_DPU_DISP -d HISI_DISP_ADAPTOR_ENABLE -d HISI_DISP_FB || true
+          grep -n 'HISI_DPU_DISP\|HISI_DISP_ADAPTOR_ENABLE\|HISI_DISP_FB' arch/arm64/configs/k414_device_defconfig || true
+
+          echo "=== fix 11: disable MODVERSIONS + RELOCATABLE + RANDOMIZE_BASE (KASLR selects RELOCATABLE -> -shared vmlinux rejects R_AARCH64_ABS32) ==="
+          grep -n 'CONFIG_MODVERSIONS\|CONFIG_RELOCATABLE\|CONFIG_RANDOMIZE_BASE' arch/arm64/configs/k414_device_defconfig || true
+          ./scripts/config --file arch/arm64/configs/k414_device_defconfig -d MODVERSIONS || true
+          ./scripts/config --file arch/arm64/configs/k414_device_defconfig -d RANDOMIZE_BASE || true
+          ./scripts/config --file arch/arm64/configs/k414_device_defconfig -d RELOCATABLE || true
+          grep -n 'CONFIG_MODVERSIONS\|CONFIG_RELOCATABLE\|CONFIG_RANDOMIZE_BASE' arch/arm64/configs/k414_device_defconfig || true
+
+      - name: Diagnose stack protector support
+        run: |
+          set +e
+          CC=aarch64-linux-gnu-gcc-10
+          echo "--- gcc version ---"; $CC --version | head -2
+          echo "--- print-file-name=include ---"; $CC -print-file-name=include
+          echo "--- bare stackp test ---"
+          echo 'void foo(void){}' > /tmp/t.c
+          $CC -fstack-protector-strong -c /tmp/t.c -o /tmp/t.o; echo "bare_rc=$?"
+          echo "--- cc-option style test (as kernel Makefile does) ---"
+          $CC -D__KERNEL__ -fstack-protector-strong -Werror -O2 -nostdinc \
+              -isystem "$($CC -print-file-name=include)" -c -x c /dev/null -o /tmp/t2.o
+          echo "ccoption_rc=$?"
+          echo "--- defconfig stackp entries ---"
+          grep -n 'CC_STACKPROTECTOR' arch/arm64/configs/k414_device_defconfig || true
+
+      - name: Fallback relax stack protector
+        run: |
+          set -e
+          chmod +x scripts/config 2>/dev/null || true
+          ./scripts/config --file arch/arm64/configs/k414_device_defconfig \
+            -d CC_STACKPROTECTOR_STRONG -d CC_STACKPROTECTOR_REGULAR -e CC_STACKPROTECTOR_NONE || true
+          grep -n 'CC_STACKPROTECTOR' arch/arm64/configs/k414_device_defconfig || true
+
+      - name: Build Kernel
+        run: |
+          set -e
+          export ARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          export CC=aarch64-linux-gnu-gcc-10
+          mkdir -p ../out
+          export KCFLAGS="-w -Wno-error -fno-stack-protector"
+          make ARCH=arm64 O=../out HOSTCFLAGS="-fcommon -w" k414_device_defconfig
+          echo "=== fix 12: force CMA family on (4.14 gfp.h references MIGRATE_CMA unconditionally) ==="
+          grep -E 'CONFIG_(CMA|MIGRATION|MEMORY_ISOLATION|COMPACTION|DMA_CMA|HISI_CMA)' ../out/.config || true
+          ./scripts/config --file ../out/.config -e MMU -e MIGRATION -e COMPACTION -e MEMORY_ISOLATION -e CMA -e DMA_CMA -e HISI_CMA -e CMA_SIZE_SEL_MBYTES --set-val CMA_AREAS 7 --set-val CMA_SIZE_MBYTES 32 || true
+          echo "=== fix 17: enable IPA_THERMAL family (mali hisilicon platform uses cdev->ipa_enabled/bound_event) ==="
+          ./scripts/config --file ../out/.config -e THERMAL -e THERMAL_OF -e THERMAL_TSENSOR -e THERMAL_POWER_ACTOR_CPU -e IPA_THERMAL -e HISI_IPA_THERMAL || true
+          grep -E '^CONFIG_(IPA_THERMAL|THERMAL_TSENSOR|THERMAL_POWER_ACTOR_CPU|HISI_IPA_THERMAL)=' ../out/.config || true
+          echo "=== fix 18: drop DEBUG_HKIP_PRMEM (test_prmem.c does not exist in this tree) ==="
+          ./scripts/config --file ../out/.config -d DEBUG_HKIP_PRMEM || true
+          echo "=== fix 23: RDR_MEM=y takes the log_bbox_cfg/log_rdr_cfg branch; enable RDR_MEM+MNTN so tlogger/Makefile skips missing log_pages_cfg.o ==="
+          ./scripts/config --file ../out/.config -e MNTN -e RDR_MEM -e HISI_BB || true
+          grep -E '^CONFIG_(MNTN|RDR_MEM|HISI_BB|TEELOG)=' ../out/.config || true
+          echo "=== fix 24: CONFIG_BATTERY_DATA gates battery_data.h (charging_core.h needs TEMP_PARA_LEVEL) ==="
+          ./scripts/config --file ../out/.config -e BATTERY_DATA -e BCI_BATTERY -e HISI_BATTERY_DATA || true
+          echo "=== fix 25: CONFIG_KEY_MASK gates keypad.h KEY_ENABLE_MASK / key_mask_ctl (device has VOLUME_KEY_MASK, a different symbol) ==="
+          ./scripts/config --file ../out/.config -e KEY_MASK -e KEYBOARD_HISI_GPIO_KEY -e VOLUME_KEY_MASK || true
+          echo "=== fix 26: CONFIG_MAS_BLK gates SHOST_QUIRK_*/queue_quirk_flag used unconditionally in ufshcd.c ==="
+          ./scripts/config --file ../out/.config -e MAS_BLK || true
+          grep -E '^CONFIG_MAS_BLK=' ../out/.config || true
+          echo "=== fix 28: CONFIG_VCODEC_PLATFORM_KIRIN970 has NO Kconfig in 4.14 tree -> select HiVCodecV200 directly (same mapping as 4.9) ==="
+          ./scripts/config --file ../out/.config -e HI_VCODEC_VENC_HIVNA -e VCODEC_PLATFORM_HIVCODECV200 -e HI_VCODEC_VDEC_HIVNA || true
+          grep -E '^CONFIG_(VCODEC_PLATFORM_HIVCODECV200|HI_VCODEC_VENC_HIVNA|VCODEC_PLATFORM_KIRIN970)=' ../out/.config || true
+          echo "=== fix 29: enable driver families that 4.9 had built-in but 4.14 gates behind Kconfig ==="
+          ./scripts/config --file ../out/.config \
+            -e HISI_SECUREC \
+            -e BLK_WBT -e BLK_WBT_MQ -e BLK_WBT_SQ \
+            -e PLATFORM_SLIMBUS -e SLIMBUS \
+            -e FILE_MAP \
+            -e HISPIPP -e IOMMU_API \
+            -e HKIP_PRMEM \
+            -e USB_F_RNDIS -e USB_CONFIGFS_RNDIS || true
+          echo "=== fix 30: sub-switches + repair commented -source for hisi/modem Kconfig ==="
+          sed -i 's|^-source "drivers/hisi/modem/Kconfig"|source "drivers/hisi/modem/Kconfig"|' drivers/hisi/Kconfig || true
+          ./scripts/config --file ../out/.config -e HISPIPP_V200 -e HI_V500_WATCHDOG -e HISI_SR_AP_WATCHDOG -e SND_DA_COMBINE_MACHINE -e SND_SOC_SLIMBUS_DAI -e SND_DA_SEPARATE_MACHINE -e DA_COMBINE_V3_CODEC -e CODEC_DSP_MISC -e SOUND_TRIGGER -e HIFI_DSP_ONE_TRACK -e CGROUP_WRITEBACK -e MEMCG -e BLK_CGROUP -e HISI_BB -e HISILICON_PLATFORM_MAINTAIN -e HISI_MNTNDUMP -e HKIP_PRMEM_BYPASS -e POWER_HISI -e LPI_HKADC -e LPM_HKADC -e LOWPM_STATS -e MMC_SDHCI -e MMC_CQ_HCI -e HISI_MMC_DSM -e PCIE_KIRIN -e ARCH_KIRIN_PCIE -e PCIE_KIRIN_MNTN -e HUAWEI_DSM_KIRIN_CHIPSETS -e HISI_PARTITION_KIRIN970 -e HISI_BALONG_MODEM -e BALONG_MTD -e ICC_BALONG -e CONTEXTHUB -e CONTEXTHUB_SHMEM -e CONTEXTHUB_BOOT_STAT || true
+          grep -E '^CONFIG_(HISPIPP_V200|HI_V500_WATCHDOG|SND_DA_COMBINE_MACHINE|CGROUP_WRITEBACK|HISI_BB|PCIE_KIRIN|HISI_BALONG_MODEM|CONTEXTHUB)=' ../out/.config || true
+          grep -E '^CONFIG_(HISI_SECUREC|BLK_WBT|PLATFORM_SLIMBUS|FILE_MAP|HISPIPP)=' ../out/.config || true
+          echo "=== fix 31: turn OFF switches whose source files do not exist in this tree ==="
+          echo "=== fix 32: disable whole subsystems whose .c sources are MISSING in this 4.14 tree (grouped by ld referencer) ==="
+          ./scripts/config --file ../out/.config -d HISPIPP -d HISPIPP_V200 -d HISPIPP_V210 -d HISPIPP_V250 -d HISPIPP_V300 -d HISPIPP_V320 -d HISPIPP_V350 -d USE_CAMERA3_ARCH -d HUAWEI_CAMERA -d SOUND_TRIGGER -d SND_DA_COMBINE_MACHINE -d SND_SOC_SLIMBUS_DAI -d CONTEXTHUB -d CONTEXTHUB_SHMEM -d CONTEXTHUB_BOOT_STAT -d HISI_BALONG_MODEM -d BALONG_MTD -d ICC_BALONG -d PCIE_KIRIN -d ARCH_KIRIN_PCIE -d PCIE_KIRIN_MNTN -d USB_F_RNDIS -d USB_CONFIGFS_RNDIS -d HI_V500_WATCHDOG -d HISI_SR_AP_WATCHDOG -d HISI_SP805_WATCHDOG -d HKIP_PRMEM -d HISI_PAGECACHE_HELPER -d HISI_BB -d HISILICON_PLATFORM_MAINTAIN -d HISI_MNTNDUMP || true
+          echo "=== fix 33: HISI_DDRC_SEC needs IRQ_WDT_INTR_FIQ which only exists under HISI_SP805/HI_V500 watchdog (both off) -> drop DDRC_SEC ==="
+          ./scripts/config --file ../out/.config -d HISI_DDRC_SEC -d HISI_MNTN_DMSS_OPTI || true
+          grep -E '^CONFIG_(HISI_DDRC_SEC|HISI_SP805_WATCHDOG|HI_V500_WATCHDOG)=' ../out/.config || true
+          echo "=== fix 34: stub the 53 linker-unresolved symbols whose provider source is absent from this 4.14 tree (probe build) ==="
+          python3 -c "syms='fiq_dump hisi_mntn_inform pch_lowmem_check2 flash_get_ptn_index ipa_get_actor_id hw_soundtrigger_event_input hw_soundtrigger_event_uevent da_combine_soundtrigger_dma_close soundtrigger_set_codec_type get_handle_msg parameter_set_msg start_recognition_msg stop_recognition_msg check_himntn worker_recent_search flash_find_ptn_s checksum32 get_log_chown map_log_mem register_log_exception register_log_mem report_log_system_error ta_crash_report_log unmap_log_mem unregister_log_exception hw_extern_pmic_config dsm_pcie_dump_reginfo kirin_pcie_enumerate pcie_ep_link_ltssm_notify register_wifi_dump_func bastet_comm_init bastet_comm_write get_ipv6_modem_rab_id get_modem_rab_id coul_get_battery_voltage_uv hisi_get_pmic_ctrl is_hi6523_cv_limit pmic_enable_boost get_boot_keypoint hisi_pmic_powerkey_only_status_get sdhci_dsm_report sdhci_dsm_handle sdhci_dsm_set_host_status sdhci_hisi_dump_clk_reg dsm_pcie_clear_info dsm_pcie_dump_info dump_apb_register pcie_plat_init get_storage_row_bootopt set_sys_pool_watermark ipa_get_periph_value ipa_get_periph_id create_rndis_device destroy_rndis_device'.split();f=open('lib/k414_stubs.c','w');f.write('#include <linux/kernel.h>\n#include <linux/types.h>\n\n');[f.write('long %s(){return 0;}\nEXPORT_SYMBOL(%s);\n' % (s,s)) for s in syms];f.close();m=open('lib/Makefile').read();m+='' if 'k414_stubs.o' in m else '\nobj-y += k414_stubs.o\n';open('lib/Makefile','w').write(m);print('STUBS_WRITTEN', len(syms))"
+          wc -l lib/k414_stubs.c || true
+          grep -n k414_stubs lib/Makefile || true
+
+          echo "=== fix 35: disable TZDRIVER family (4.14 tzdriver targets EMUI12/HarmonyOS TEE ABI; on EMUI9.1 secure world pid1 blocks in SMC cmd 23 for 46s then idle-task panic) ==="
+          ./scripts/config --file ../out/.config -d TZDRIVER -d TEELOG -d TEE_TUI -d TEE_TUI_FP -d TEE_KTRACE -d TEECD_AUTH -d TEE_LOG_EXCEPTION || true
+          grep -E '^(CONFIG_(TZDRIVER|TEELOG|TEE_TUI|TEE_KTRACE|TEECD_AUTH)|# CONFIG_(TZDRIVER|TEELOG|TEE_TUI) is not set)' ../out/.config || true
+          grep -E '^CONFIG_(HISPIPP|USE_CAMERA3_ARCH|SOUND_TRIGGER|CONTEXTHUB|HISI_BALONG_MODEM|PCIE_KIRIN|USB_F_RNDIS|HI_V500_WATCHDOG|HKIP_PRMEM)=' ../out/.config || true
+          grep -cE '^# CONFIG_(HISPIPP|USE_CAMERA3_ARCH|SOUND_TRIGGER|CONTEXTHUB|HISI_BALONG_MODEM|PCIE_KIRIN|USB_F_RNDIS)=' ../out/.config || true
+          ./scripts/config --file ../out/.config -d SND_DA_SEPARATE_MACHINE -d SND_ANALOG_LESS_MACHINE -d LOWPM_STATS -d LOWPM_DDR_STATE || true
+          ls sound/soc/hisilicon/*.c | tr '\n' ' ' || true
+          echo
+          ls drivers/hisi/dpm/ || true
+          grep -E '^CONFIG_(KEY_MASK|VOLUME_KEY_MASK|KEYBOARD_HISI_GPIO_KEY|BCI_BATTERY)=' ../out/.config || true
+          grep -E '^CONFIG_(BATTERY_DATA|HISI_BATTERY_DATA)=' ../out/.config || true
+          grep -E '^CONFIG_(DEBUG_HKIP_PRMEM|HKIP_PRMEM)=' ../out/.config || true
+          make ARCH=arm64 O=../out HOSTCFLAGS="-fcommon -w" olddefconfig
+          echo "=== diag: core subsystems after olddefconfig ==="
+          ls -l arch/arm64/configs/k414_device_defconfig || true
+          grep -E '^CONFIG_(NET|I2C|HAVE_HW_BREAKPOINT|HW_BREAKPOINT|PERF_EVENTS|INET|PACKET)=' ../out/.config || true
+          grep -cE '^# CONFIG_(NET|I2C|HAVE_HW_BREAKPOINT) is not set' ../out/.config || true
+          echo "--- effective config check ---"
+          grep -n 'CONFIG_MODVERSIONS\|CONFIG_RELOCATABLE\|CONFIG_CC_STACKPROTECTOR' ../out/.config || true
+          grep -E 'CONFIG_(CMA|MIGRATION|MEMORY_ISOLATION|COMPACTION)=' ../out/.config || true
+          echo "--- how many symbols the 4.9->4.14 oldconfig dropped ---"
+          grep -c '^# CONFIG_.* is not set' ../out/.config || true
+          make ARCH=arm64 O=../out HOSTCFLAGS="-fcommon -w" CC=aarch64-linux-gnu-gcc-10 -j$(nproc --all)
+
+      - name: Show result
+        if: always()
+        run: |
+          ls -la ../out/arch/arm64/boot/ 2>/dev/null || echo "no boot dir"
+
+      - name: Pack artifacts
+        if: always()
+        run: |
+          mkdir -p dist/ko
+          cp ../out/arch/arm64/boot/Image.gz dist/ 2>/dev/null || true
+          cp ../out/arch/arm64/boot/Image dist/ 2>/dev/null || true
+          cp ../out/.config dist/kernel_config.txt 2>/dev/null || true
+          find ../out -name '*.ko' -exec cp {} dist/ko/ \; 2>/dev/null || true
+          ls -la dist dist/ko | head -60
+
+      - name: Upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kirin970_K414_${{ env.NOW }}
+          path: dist/
+          if-no-files-found: warn
+
+
+
+
+
+
+
+
+
+
+
+
+
+
