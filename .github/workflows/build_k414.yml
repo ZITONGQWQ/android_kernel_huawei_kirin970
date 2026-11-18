@@ -245,6 +245,11 @@ jobs:
           grep -E 'CONFIG_(CMA|MIGRATION|MEMORY_ISOLATION|COMPACTION)=' ../out/.config || true
           echo "--- how many symbols the 4.9->4.14 oldconfig dropped ---"
           grep -c '^# CONFIG_.* is not set' ../out/.config || true
+          echo "=== fix 36: 4.14 LPM3 regulator ABI mismatch -> bypass; mali regulator BUG_ON(1) -> warn (probe only) ==="
+          python3 .github/scripts/fix36_patch_src.py
+          grep -n "K414LPMBYPASS" drivers/regulator/ip_regulator.c || true
+          grep -n "K414MALIWARN" drivers/gpu/arm/bifrost-r18p0-01rel0/platform/hisilicon/mali_kbase_config_hisilicon.c || true
+          echo "remaining BUG_ON(1):"; grep -c "BUG_ON(1)" drivers/gpu/arm/bifrost-r18p0-01rel0/platform/hisilicon/mali_kbase_config_hisilicon.c || true
           make ARCH=arm64 O=../out HOSTCFLAGS="-fcommon -w" CC=aarch64-linux-gnu-gcc-10 -j$(nproc --all)
 
       - name: Show result
